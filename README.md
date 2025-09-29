@@ -30,11 +30,14 @@ microlensed distorted signals.
 **INSTALLATION :**
 
 Step I (git cloning, so that files move to your local):
+
 git clone https://github.com/AniruddhaCIndia/glance.git
 
 Step II (Find installer, it's in the same folder):
+
 cd glance
 
 Step III (Install glance):
+
 pip install -e .
 (Any changes ypu make to **_GLANCE_** are accounted without reinstalling it again.)
