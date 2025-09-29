@@ -1,0 +1,5 @@
+setup.py
+glance.egg-info/PKG-INFO
+glance.egg-info/SOURCES.txt
+glance.egg-info/dependency_links.txt
+glance.egg-info/top_level.txt

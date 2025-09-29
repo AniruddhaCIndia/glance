@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: glance
+Version: 0.1
+Summary: A Python package for my glance project
+Author: Aniruddha
+Author-email: aniruddha.chakraborty@tifr.res.in
+Dynamic: author
+Dynamic: author-email
+Dynamic: summary
