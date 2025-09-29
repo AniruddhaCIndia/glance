@@ -47,6 +47,7 @@ pip install -e .
 Step IV (Update installation):
 
 cd glance
+
 git pull origin main
 
 ----------------------------------------
