@@ -27,6 +27,8 @@ Is there something called **_$\mu$-GLANCE_**?
 Yes, that's **_GLANCE_**'s junior sibling. While **_GLANCE_** itself looks for strongly lensed signals, **_$\mu$-GLANCE_** (called micro-GLANCE) looks for 
 microlensed distorted signals.
 
+---------------------------------------
+
 **INSTALLATION :**
 
 Step I (git cloning, so that files move to your local):
@@ -41,3 +43,13 @@ Step III (Install glance):
 
 pip install -e .
 (Any changes ypu make to **_GLANCE_** are accounted without reinstalling it again.)
+
+Step IV (Update installation):
+
+cd glance
+git pull origin main
+
+----------------------------------------
+
+If you're interested in contributing to the development of **_GLANCE_**, please get in touch: aniruddha.chakraborty@tifr.res.in
+
