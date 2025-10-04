@@ -1,5 +1,81 @@
 import numpy as np
 from gwpy.timeseries import TimeSeries
+import os
+import h5py
+
+def strain_define(strain_paths):
+    """
+    Load and organize strain data from multiple HDF5 files.
+
+    This function reads strain data from HDF5 files, extracts metadata
+    from filenames, and stores the data along with metadata in a dictionary.
+
+    Parameters
+    ----------
+    strain_paths : list of str
+        List of file paths to strain data files in HDF5 format.
+        Each filename is expected to follow the pattern:
+        <detector>-<something>-<start_time>-<duration>.hdf5
+
+    Returns
+    -------
+    data_dict : dict
+        Dictionary containing strain data and metadata for each detector.
+        Keys are detector names extracted from filenames. Each value is a
+        dictionary with the following structure:
+            - "strain": TimeSeries object containing the strain data.
+            - "start_time": float, start time of the strain data segment.
+            - "duration": int, duration of the segment in seconds.
+            - "sampling_frequency": int, sampling frequency (Hz).
+
+    Notes
+    -----
+    - This function assumes a fixed sampling frequency of 4096 Hz.
+    - The filename must contain metadata in the format:
+      <detector>-<something>-<start_time>-<duration>.hdf5
+      where `start_time` is a float and `duration` is an integer.
+    - Requires `h5py` and `gwpy.timeseries.TimeSeries`.
+
+    Example
+    -------
+    >>> strain_paths = ["H1-L1-1126259446-32.hdf5", "L1-H1-1126259446-32.hdf5"]
+    >>> data_dict = strain_define(strain_paths)
+    >>> print(data_dict.keys())
+    dict_keys(['H1', 'L1'])
+    """
+    strain_filepaths = strain_paths
+    data_dict = {}
+
+    for file in strain_filepaths:
+        file_name = os.path.basename(file)
+        key = file_name.split("-")[0]
+
+        parts = file_name.split("-")
+        start_time = float(parts[2])
+        duration = int(parts[3].split(".")[0])
+        sampling_frequency = 4096
+
+        with h5py.File("/data/achakraborty/GWTC_4_files/" + file, 'r') as f:
+            strain_dataset = f['strain/Strain']
+            file_content = strain_dataset[:]
+
+        strain_data = TimeSeries(
+            file_content,
+            dt=1/sampling_frequency,
+            t0=start_time,
+            dtype=float
+        )
+
+        data_dict[key] = {
+            "strain": strain_data,
+            "start_time": start_time,
+            "duration": duration,
+            "sampling_frequency": sampling_frequency,
+        }
+
+    print(data_dict.keys())
+    return data_dict
+
 
 def waveform_extender(waveform, data_dict, det):
 

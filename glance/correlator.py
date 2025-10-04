@@ -131,13 +131,38 @@ def grouped_sums(cc_data, cc_time, t_start, t_end, steps):
     - Both `cc_time` and `cc_data` should be numpy arrays or array-like objects.
     - Slicing excludes `idx2`, i.e. `cc_data[idx1:idx2]`, meaning the exact end time may not be included.
     """
-    idx1, idx2 = np.argmin(abs(cc_time-t_start)), np.argmin(abs(cc_time - t_end))
-    cc_data_chop = cc_data[idx1 : idx2]
-    group_size = int(abs(idx2 - idx1)/int(steps))
-    trimmed_data = cc_data_chop[:len(cc_data_chop) - len(cc_data_chop) % group_size]
-    grouped_sums = trimmed_data.reshape(-1, group_size).sum(axis=1)
+    idx1 = np.searchsorted(cc_time, t_start, side='right')
+    idx2 = np.searchsorted(cc_time, t_end, side='right')
 
-    return grouped_sums
+    if idx1 == idx2:
+        return cc_data[idx1]
+    else:
+        cc_data_chop = cc_data[idx1 : idx2]
+        group_size = int(abs(idx2 - idx1)/int(steps))
+        trimmed_data = cc_data_chop[:len(cc_data_chop) - len(cc_data_chop) % group_size]
+        grouped_sums = trimmed_data.reshape(-1, group_size).sum(axis=1)
+
+        return grouped_sums
+
+def grouped_std_deviation(data: np.ndarray, group_size: int) -> float:
+    """
+    Computes the standard deviation of sums of non-overlapping groups of elements in an array.
+
+    Parameters:
+    - data (np.ndarray): Input array of numbers
+    - group_size (int): Number of elements per group
+
+    Returns:
+    - float: Standard deviation of the sums of groups
+    """
+    # Ensure data length is divisible by group_size
+    trimmed_data = data[:len(data) - len(data) % group_size]
+    
+    # Reshape and sum over groups
+    grouped_sums = trimmed_data.reshape(-1, group_size).sum(axis=1)
+    
+    # Return the standard deviation
+    return np.mean(grouped_sums), np.std(grouped_sums)
 
 
 def cross_correlator_normalized(array1, array2, time, steps, specific_time=None, midpoint=True):

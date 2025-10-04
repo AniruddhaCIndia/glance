@@ -1,0 +1,6 @@
+gwpy
+pycbc
+astropy
+bilby
+pesummary
+lalsuite
