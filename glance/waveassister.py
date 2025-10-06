@@ -204,4 +204,3 @@ def residual_definer(waveform, data_dict, det, duration, f_low, max_l_time):
     aligned_res = data_dict[det]["strain"][int(idx_H1) : int(idx_H2) ].highpass(f_low) - waveform[det][int(idx_H1) : int(idx_H2) ]
     aligned_res = data_dict[det]["strain"][int(idx_H1) : int(idx_H2) ] - waveform[det][int(idx_H1) : int(idx_H2) ]
     return aligned_res
-

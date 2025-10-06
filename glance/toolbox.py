@@ -3,6 +3,8 @@ from pycbc.filter import match
 from pycbc.filter import overlap
 import numpy as np
 from scipy.signal import stft
+from pycbc.psd import welch, interpolate
+from pycbc.filter import highpass, lowpass, highpass_fir, lowpass_fir
 
 
 def waveform_match(h1, h2, flow):
@@ -19,6 +21,7 @@ def waveform_match(h1, h2, flow):
     m, i = match(h1, h2, psd=psd, low_frequency_cutoff=flow)
 
     return m, i
+
 
 def find_valid_chunk(time, data, duration, t_s, t_e, return_indices=False):
     """
@@ -108,6 +111,7 @@ def waveform_overlap(htilde, stilde, psd, df):
 
     return inner / (sigma_h * sigma_s)
 
+
 def waveform_overlap_pycbc(h1, h2, flow):
 
     tlen = max(len(h1), len(h2))
@@ -122,6 +126,7 @@ def waveform_overlap_pycbc(h1, h2, flow):
     m = overlap(h1, h2, psd=psd, low_frequency_cutoff=flow, normalized=True)
 
     return m
+
 
 def timeseries_time2frequency_finder(timeseries, sampling_freq, desired_time, epoch, nperseg=64):
     """
@@ -142,6 +147,7 @@ def timeseries_time2frequency_finder(timeseries, sampling_freq, desired_time, ep
     dominant_frequency = f[np.argmax(np.abs(Zxx[:, desired_time_idx]))]  # Find dominant frequency
     return dominant_frequency
 
+
 def timeseries_frequency2time_finder(timeseries, sampling_freq, desired_freq,  epoch, nperseg=64,):
     """
     Find the time when the desired frequency is dominant in the time series.
@@ -161,6 +167,7 @@ def timeseries_frequency2time_finder(timeseries, sampling_freq, desired_freq,  e
     dominant_time = t[np.argmax(np.abs(Zxx[desired_freq_idx, :]))]  # Find dominant time
     return dominant_time
 
+
 def find_larger_indices(time_series: np.ndarray, t_a: float, t_b: float) -> tuple:
     """
     Find indices in a time series for values closest but larger than t_a and t_b.
@@ -178,3 +185,77 @@ def find_larger_indices(time_series: np.ndarray, t_a: float, t_b: float) -> tupl
     
     return idx_a, idx_b
 
+
+def data_process(data, lowf, highf, bp_type='fir', order=32, white=True, bandpassed=True):
+    
+    """
+    Process time-series gravitational wave data by applying whitening and/or bandpass filtering.
+
+    Parameters
+    ----------
+    data : pycbc.types.TimeSeries
+        The input time-domain strain data to be processed.
+
+    lowf : float
+        The lower cutoff frequency (Hz) for the bandpass filter.
+
+    highf : float
+        The upper cutoff frequency (Hz) for the bandpass filter.
+
+    bp_type : str, optional
+        The type of bandpass filter to use: 
+        - 'fir' for finite impulse response filtering (default),
+        - 'iir' for infinite impulse response filtering.
+
+    order : int, optional
+        The order of the filter (default is 32). Controls the sharpness of the cutoff.
+
+    white : bool, optional
+        If True, perform whitening using the estimated power spectral density (default is True).
+
+    bandpassed : bool, optional
+        If True, apply a bandpass filter between `lowf` and `highf` (default is True).
+
+    Returns
+    -------
+    data : pycbc.types.TimeSeries
+        The processed time-domain strain data.
+
+    Notes
+    -----
+    - Whitening is done in the frequency domain using the Welch-estimated PSD.
+    - FIR filters are typically more stable and linear phase, while IIR filters are more computationally efficient.
+    - The combination of `white` and `bandpassed` controls the processing pipeline:
+        * If both are True: data is whitened and bandpass filtered.
+        * If only white is True: data is whitened but not filtered.
+        * If only bandpassed is True: data is filtered but not whitened.
+        * If both are False: data is returned unmodified.
+    """
+
+    if white and bandpassed:
+        psd = interpolate(welch(data), 1.0 / data.duration)
+        data = (data.to_frequencyseries() / psd ** 0.5).to_timeseries()
+        
+        if bp_type == 'fir':
+            data = highpass_fir(data, lowf, order)
+            data = lowpass_fir(data, highf, order)
+        elif bp_type == 'iir':
+            data = highpass(data, lowf, order)
+            data = lowpass(data, highf, order)
+
+    if white and not bandpassed:
+        psd = interpolate(welch(data), 1.0 / data.duration)
+        data = (data.to_frequencyseries() / psd ** 0.5).to_timeseries()
+
+    if bandpassed and not white:
+        if bp_type == 'fir':
+            data = highpass_fir(data, lowf, order)
+            data = lowpass_fir(data, highf, order)
+        elif bp_type == 'iir':
+            data = highpass(data, lowf, order)
+            data = lowpass(data, highf, order)
+
+    else: 
+        data = data
+    
+    return data
