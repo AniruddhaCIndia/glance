@@ -2,6 +2,8 @@ import numpy as np
 from gwpy.timeseries import TimeSeries
 import os
 import h5py
+from pycbc.detector import Detector
+
 
 def strain_define(strain_paths):
     """
@@ -204,3 +206,118 @@ def residual_definer(waveform, data_dict, det, duration, f_low, max_l_time):
     aligned_res = data_dict[det]["strain"][int(idx_H1) : int(idx_H2) ].highpass(f_low) - waveform[det][int(idx_H1) : int(idx_H2) ]
     aligned_res = data_dict[det]["strain"][int(idx_H1) : int(idx_H2) ] - waveform[det][int(idx_H1) : int(idx_H2) ]
     return aligned_res
+
+
+def antenna_pattern_matrix(det1, det2, ra, dec, tc, pol, mat_inv=True):
+    detector1 = Detector(det1)
+    detector2 = Detector(det2)
+
+    fp1, fc1 = detector1.antenna_pattern(ra, dec, pol, tc)
+    fp2, fc2 = detector2.antenna_pattern(ra, dec, pol, tc)
+
+    mat_12 = np.array([
+        [fp1, fc1],
+        [fp2, fc2]
+    ])
+
+    mat_i_12 = np.linalg.inv(mat_12)
+
+    return mat_i_12 if mat_inv else mat_12
+
+
+def polarization_extractor(mat_i_12, data1, data2):
+    hp_12 = mat_i_12[0][0] * data1 + mat_i_12[0][1] * data2
+    hc_12 = mat_i_12[1][0] * data1 + mat_i_12[1][1] * data2
+    return hp_12, hc_12
+
+
+def extract_aligned_data(det, data, ra, dec, t_ref, points_before, points_after):
+    gps = t_ref + Detector(det).time_delay_from_earth_center(ra, dec, t_ref)
+    times = np.array(data.sample_times)
+    idx = np.searchsorted(times, gps, 'right')
+    sliced_data = np.array(data[idx - points_before : idx + points_after])
+    sliced_times = times[idx - points_before : idx + points_after]
+    return sliced_data, sliced_times, gps
+
+
+def cross_correlation(det1, det2, data1, data2, data1n, data2n, ra, dec, tc, tcn, pol, poln, chop_duration, steps=64, polarization=True):
+    duration = chop_duration
+    delta_t = data1.sample_time[1] - data1.sample_time[0]
+    points_before = int((duration/2 - 0.1) / delta_t)
+    points_after = int((duration/2 + 0.1)/ delta_t)
+    
+    # Aligned data for signal
+    data1c, x1c, gps1 = extract_aligned_data(det1, data1, ra, dec, tc, points_before, points_after)
+    data2c, x2c, gps2 = extract_aligned_data(det2, data2, ra, dec, tc, points_before, points_after)
+
+    # Aligned data for noise
+    data1nc, x1nc, gps1n = extract_aligned_data(det1, data1n, ra, dec, tcn, points_before, points_after)
+    data2nc, x2nc, gps2n = extract_aligned_data(det2, data2n, ra, dec, tcn, points_before, points_after)
+    
+    if polarization:
+        mat_i_12 = antenna_pattern_matrix(det1, det2, ra, dec, tc, pol, mat_inv=True)
+        hp_12, hc_12 = polarization_extractor(mat_i_12, data1c, data2c)
+
+        matn_i_12 = antenna_pattern_matrix(det1, det2, ra, dec, tcn, poln, mat_inv=True)
+        hpn_12, hcn_12 = polarization_extractor(matn_i_12, data1nc, data2nc)
+
+        tpp, hpXhpn, spp = cross_correlator(hp_12, hpn_12, x1c, steps, gps1, midpoint=False)
+        tcc, hcXhcn, scc = cross_correlator(hc_12, hcn_12, x1c, steps, gps1, midpoint=False)
+        tpc, hpXhcn, spc = cross_correlator(hp_12, hcn_12, x1c, steps, gps1, midpoint=False)
+        tcp, hcXhpn, scp = cross_correlator(hc_12, hpn_12, x1c, steps, gps1, midpoint=False)
+
+        return tpp, hpXhpn, spp, tcc, hcXhcn, scc, tpc, hpXhcn, spc, tcp, hcXhpn, scp
+    
+    else:
+        t1, dXd1, s1 = cross_correlator(data1c, data1nc, x1c, steps, gps1, midpoint=False)
+        t2, dXd2, s2 = cross_correlator(data2c, data2nc, x1c, steps, gps1, midpoint=False)
+        return t1, dXd1, s1, t2, dXd2, s2
+
+
+def compute_all_cross_correlations(det1, det2, det3, data1, data2, data3, data1n, data2n, data3n, ra, dec, tc, tcn, pol, poln, steps=64, polarization=True):
+    results = {}
+    
+    def format_result(output, polarization):
+        if polarization:
+            return {
+                'tpp': output[0],
+                'hpXhpn': output[1],
+                'spp': output[2],
+                'tcc': output[3],
+                'hcXhcn': output[4],
+                'scc': output[5],
+                'tpc': output[6],
+                'hpXhcn': output[7],
+                'spc': output[8],
+                'tcp': output[9],
+                'hcXhpn': output[10],
+                'scp': output[11],
+            }
+        else:
+            return {
+                't1': output[0],
+                'dXd1': output[1],
+                's1': output[2],
+                't2': output[3],
+                'dXd2': output[4],
+                's2': output[5],
+            }
+    
+    results['H1_L1'] = format_result(
+        cross_correlation(det1, det2, data1, data2, data1n, data2n, ra, dec, tc, tcn, pol, poln, steps, polarization),
+        polarization
+    )
+
+    results['H1_V1'] = format_result(
+        cross_correlation(det1, det3, data1, data3, data1n, data3n, ra, dec, tc, tcn, pol, poln, steps, polarization),
+        polarization
+    )
+
+    results['L1_V1'] = format_result(
+        cross_correlation(det2, det3, data2, data3, data2n, data3n, ra, dec, tc, tcn, pol, poln, steps, polarization),
+        polarization
+    )
+
+    return results
+
+

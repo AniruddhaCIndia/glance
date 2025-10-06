@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import gaussian_kde
+import json
 
 def compute_kde(ra_samples, dec_samples, ra_grid, dec_grid, bw='silverman'):
     """
@@ -72,11 +73,55 @@ def ra_dec_overlap(ra1, dec1, ra2, dec2, ra_grid, dec_grid, level=0.9):
     return overlap_points
 
 
+def overlapping_grid_points(event_id1, event_id2, ra_points=50, dec_points=25):
+    """
+    Load RA/Dec samples for two events and compute their 90% KDE overlap region.
+    
+    Parameters:
+        event_id1 (str): First event ID.
+        event_id2 (str): Second event ID.
+        ra_points (int): Number of grid points along RA.
+        dec_points (int): Number of grid points along Dec.
+    
+    Returns:
+        overlap_points (2D np.ndarray): Grid points within the overlapping KDE regions.
+    """
+    filename1 = f"results_sample_A_O4/{event_id1}_result.json"
+    filename2 = f"results_sample_A_O4/{event_id2}_result.json"
+
+    try:
+        with open(filename1, "r") as file1:
+            data1 = json.load(file1)
+        ra1 = np.array(data1['nested_samples']['content']['ra'])
+        dec1 = np.array(data1['nested_samples']['content']['dec'])
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error reading '{filename1}': {e}")
+        return None
+
+    try:
+        with open(filename2, "r") as file2:
+            data2 = json.load(file2)
+        ra2 = np.array(data2['nested_samples']['content']['ra'])
+        dec2 = np.array(data2['nested_samples']['content']['dec'])
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error reading '{filename2}': {e}")
+        return None
+
+    # Define grid for KDE evaluation
+    ra_grid = np.linspace(0, 2*np.pi, ra_points)
+    dec_grid = np.linspace(-np.pi/2, np.pi/2, dec_points)
+
+    # Compute and return the overlapping region
+    overlapping_points = ra_dec_overlap(ra1, dec1, ra2, dec2, ra_grid, dec_grid)
+    return overlapping_points
+
+
 def ra_dec_to_x_y_z (ra, dec):
     theta = dec + np.pi/2
     phi = ra 
     x, y, z = np.sin(theta)* np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)
     return x, y, z
+
 
 def ra_dec_overlap_legacy(ra_1, dec_1, ra_2, dec_2, points = 100):
 

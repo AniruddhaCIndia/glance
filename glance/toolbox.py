@@ -6,6 +6,45 @@ from scipy.signal import stft
 from pycbc.psd import welch, interpolate
 from pycbc.filter import highpass, lowpass, highpass_fir, lowpass_fir
 
+def event_specs_from_gwsim(gwsim_json, event_id):
+    df_inj = gwsim_json
+    tc = df_inj['injections_parameters']['geocent_time']
+    
+    inj_params = {
+        "approximant": "IMRPhenomPv2",
+        'delta_t': 1 / 4096,
+        'delta_f': 1 / 128,
+        'f_lower': 20,
+        'f_ref': 50,
+        'f_final': 2048,
+        'detectors': ['H1', 'L1', 'V1'],
+    }
+
+    seeds = []
+
+    for i in range(len(tc)):
+        if float(tc[i]) == float(event_id):
+            inj_params.update({
+                'mass1': df_inj['injections_parameters']['m1d'][i],
+                'mass2': df_inj['injections_parameters']['m2d'][i],
+                'distance': df_inj['injections_parameters']['dls'][i],
+                'inclination': df_inj['injections_parameters']['incs'][i],
+                'spin1z': df_inj['injections_parameters']['chi_1'][i] *
+                          np.cos(df_inj['injections_parameters']['theta_1'][i]),
+                'spin2z': df_inj['injections_parameters']['chi_2'][i] *
+                          np.cos(df_inj['injections_parameters']['theta_2'][i]),
+                'coa_phase': df_inj['injections_parameters']['phis'][i],
+                'polarization': df_inj['injections_parameters']['psis'][i],
+                'ra': df_inj['injections_parameters']['ras'][i],
+                'dec': df_inj['injections_parameters']['decs'][i],
+                'tc': df_inj['injections_parameters']['geocent_time'][i],
+                'epoch': df_inj['injections_parameters']['geocent_time'][i] - 64,
+            })
+            seeds.append(df_inj['injections_parameters']['seeds'][i])
+            break
+
+    return inj_params, seeds
+
 
 def waveform_match(h1, h2, flow):
 
