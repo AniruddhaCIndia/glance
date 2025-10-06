@@ -5,6 +5,7 @@ glance/__init__.py
 glance/configurator.py
 glance/correlator.py
 glance/generator.py
+glance/overlapper.py
 glance/toolbox.py
 glance/waveassister.py
 glance.egg-info/PKG-INFO
