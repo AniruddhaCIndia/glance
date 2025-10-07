@@ -57,7 +57,7 @@ def strain_define(strain_paths):
         duration = int(parts[3].split(".")[0])
         sampling_frequency = 4096
 
-        with h5py.File("/data/achakraborty/GWTC_4_files/" + file, 'r') as f:
+        with h5py.File(file, 'r') as f:
             strain_dataset = f['strain/Strain']
             file_content = strain_dataset[:]
 
