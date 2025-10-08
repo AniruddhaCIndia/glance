@@ -1,6 +1,6 @@
 What's **_GLANCE_**?
 
-**_GLANCE_** (acronym for Gravitational Lensing Authenticator using Non-modelled Cross-ocrrelation Exploration) is a tool to find gravitationally lensed images. 
+**_GLANCE_** (acronym for Gravitational Lensing Authenticator using Non-modelled Cross-correlation Exploration) is a tool to find gravitationally lensed images. 
 Whether it's a signle distorted image or a multi-image system, **_GLANCE_** finds them all.
 
 Why **_GLANCE_**?
