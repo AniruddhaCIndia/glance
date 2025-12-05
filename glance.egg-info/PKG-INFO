@@ -9,7 +9,6 @@ Requires-Dist: gwpy
 Requires-Dist: pycbc
 Requires-Dist: astropy
 Requires-Dist: bilby
-Requires-Dist: pesummary
 Requires-Dist: lalsuite
 Dynamic: author
 Dynamic: author-email

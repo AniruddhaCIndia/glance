@@ -9,7 +9,6 @@ setup(
         "pycbc",
         "astropy",
         "bilby",
-        "pesummary",
         "lalsuite",
     ],
     description="A Python package for GLANCE",
