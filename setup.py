@@ -8,6 +8,7 @@ setup(
         "gwpy",
         "pycbc",
         "astropy",
+	"pesummary",
         "bilby",
         "lalsuite",
     ],

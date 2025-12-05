@@ -8,6 +8,7 @@ License-File: LICENSE
 Requires-Dist: gwpy
 Requires-Dist: pycbc
 Requires-Dist: astropy
+Requires-Dist: pesummary
 Requires-Dist: bilby
 Requires-Dist: lalsuite
 Dynamic: author
