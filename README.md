@@ -52,5 +52,5 @@ git pull origin main
 
 ----------------------------------------
 
-If you're interested in contributing to the development of **_GLANCE_**, please get in touch: aniruddha.chakraborty@tifr.res.in
+If you're interested in learning more about **_GLANCE_**, please get in touch: aniruddha.chakraborty@tifr.res.in
 
