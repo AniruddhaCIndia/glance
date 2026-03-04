@@ -144,6 +144,7 @@ def grouped_sums(cc_data, cc_time, t_start, t_end, steps):
 
         return grouped_sums
 
+
 def grouped_std_deviation(data: np.ndarray, group_size: int) -> float:
     """
     Computes the standard deviation of sums of non-overlapping groups of elements in an array.
