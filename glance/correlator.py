@@ -114,7 +114,6 @@ def cross_correlator(
     return time_of_cross_corr, data_cross_corr
 
 
-
 def grouped_sums(cc_data, cc_time, t_start, t_end, steps):
     """
     Calculate sums of grouped data within a specified time range.
@@ -189,45 +188,77 @@ def grouped_std_deviation(data: np.ndarray, group_size: int) -> float:
 
 
 def SNR_calculator(cross, cross_noise, time, steps, specific_time=None, midpoint=True):
-    s1 = int(steps)
-    N1 = len(cross)
-    p1 = int(N1 / s1)
+    """
+    Compute a chunk-wise, chunk-size-independent SNR of a cross-correlation signal.
 
-    p2 = int(p1)
-    N2 = len(cross_noise)
-    s2 = int(N2 / p2)
+    This function divides the cross-correlation signal into chunks, computes
+    the mean correlation in each chunk, and compares it to the standard deviation
+    of the raw noise signal (not chunked) to yield an SNR independent of chunk size.
+
+    Parameters
+    ----------
+    cross : np.ndarray
+        Cross-correlation signal (1D array).
+    cross_noise : np.ndarray
+        Noise cross-correlation (1D array), assumed zero-mean or baseline.
+    time : np.ndarray
+        Time points corresponding to `cross`.
+    steps : int
+        Number of chunks to divide the data into.
+    specific_time : float, optional
+        If provided, returns the SNR for the chunk containing the time closest
+        to this value.
+    midpoint : bool, default=True
+        Determines how the representative time for each chunk is computed:
+        - True: uses the midpoint of each chunk.
+        - False: uses the last time point of each chunk.
+
+    Returns
+    -------
+    snr_time : np.ndarray
+        Array of representative times for each chunk.
+    snr : np.ndarray
+        Chunk-wise SNR values (mean signal / noise std), independent of chunk size.
+    specific_snr : float, optional
+        SNR value for the chunk containing `specific_time`. Returned only if
+        `specific_time` is provided.
+
+    Notes
+    -----
+    - This SNR is mathematically equivalent to a Z-score of the signal with
+      respect to the noise, using the raw noise std to remain chunk-size independent.
+    - The numerator uses the **mean cross-correlation in each chunk**, which smooths
+      fluctuations without artificially inflating SNR.
+    """
     
-
-    sig, noise, snr_time = [], [], []
-
+    N = len(cross)
+    steps = int(steps)
+    chunk_size = N // steps  # floor division to fit exact chunks
+    N_trim = chunk_size * steps
+    
+    # Reshape for vectorized computation
+    cross_chunks = cross[:N_trim].reshape(steps, chunk_size)
+    time_chunks = time[:N_trim].reshape(steps, chunk_size)
+    
+    # Compute mean signal per chunk
+    sig = cross_chunks.mean(axis=1)
+    
+    # Compute representative time per chunk
+    if midpoint:
+        mid_idx = chunk_size // 2
+        snr_time = 0.5 * (time_chunks[:, mid_idx - 1] + time_chunks[:, mid_idx])
+    else:
+        snr_time = time_chunks[:, -1]
+    
+    # Noise std over all raw samples (chunk-size independent)
+    noise_std = np.std(cross_noise, ddof=1)
+    
+    # Compute chunk-wise SNR
+    snr = sig / noise_std
+    
     if specific_time is not None:
         idx = (np.abs(time - specific_time)).argmin()
-        specific_chunk = idx // p1
-
-    for i in range(s1):
-        start1 = i * p1
-        end1 = start1 + p1
-        a = np.sum(cross[start1:end1])
-        sig.append(a)
-
-        if midpoint:
-            t_mid = 0.5 * (time[start1 + p1 // 2 - 1] + time[start1 + p1 // 2])
-        else:
-            t_mid = time[start1 + p1 - 1]
-        snr_time.append(t_mid)
-
-    for i in range(s2):
-        start2 = i * p2
-        end2 = start2 + p2
-        n = np.sum(cross_noise[start2:end2])
-        noise.append(n)
-
-    sig = np.array(sig)
-    noise = np.array(noise)
-    snr = abs(sig / np.std(noise, ddof=1))
-    snr_time = np.array(snr_time)
-
-    if specific_time is not None:
+        specific_chunk = idx // chunk_size
         return snr_time, snr, snr[specific_chunk]
-
+    
     return snr_time, snr
