@@ -1,96 +1,118 @@
 from scipy.integrate import simpson
 import numpy as np
 
-def cross_correlator(array1, array2, time, steps, specific_time=None, midpoint=True):
-
+def cross_correlator(
+    array1, 
+    array2, 
+    time, 
+    steps, 
+    specific_time=None, 
+    midpoint=True,
+    pearson=False
+):
     """
-    Compute the segmented cross-correlation between two signals.
+    Compute chunk-wise normalized cross-correlation between two time series.
 
-    This function divides the input time series into segments and calculates
-    the cross-correlation for each segment using numerical integration
-    (Simpson's rule). Optionally, it can return the cross-correlation for
-    a segment corresponding to a specific time.
+    This function divides two input arrays into equal-sized segments ("chunks")
+    and computes a normalized cross-correlation value for each chunk. Optionally,
+    the correlation can be computed in a Pearson-like manner by mean-centering
+    each chunk.
 
     Parameters
     ----------
-    array1 : array-like
-        First time series data array.
-    array2 : array-like
-        Second time series data array. Must be the same length as `array1`.
-    time : array-like
-        Array of time points corresponding to `array1` and `array2`.
+    array1 : np.ndarray
+        First input array (1D), representing a time series signal.
+    array2 : np.ndarray
+        Second input array (1D), must be the same length as `array1`.
+    time : np.ndarray
+        1D array of time values corresponding to the input arrays.
     steps : int
-        Number of segments to divide the time series into.
+        Number of chunks to divide the data into.
     specific_time : float, optional
-        If provided, the function returns the cross-correlation for the segment
-        that contains this specific time point.
+        If provided, returns the correlation value corresponding to the chunk
+        that contains the time closest to this value.
     midpoint : bool, default=True
-        Determines how segment times are calculated:
-        - If True: time for each segment is taken as the midpoint of the segment.
-        - If False: time for each segment is taken as the endpoint of the segment.
+        Determines how the representative time for each chunk is computed:
+        - True: uses the midpoint of each chunk.
+        - False: uses the last time value of each chunk.
+    pearson : bool, default=False
+        If True, mean-centers each chunk before computing correlation,
+        resulting in a Pearson-like correlation coefficient.
 
     Returns
     -------
-    time_of_cross_corr : numpy.ndarray
-        Array of segment times corresponding to each cross-correlation value.
-    data_cross_corr : numpy.ndarray
-        Array of cross-correlation values for each segment.
-    specific_cross_corr : float, optional
-        If `specific_time` is provided, the cross-correlation value of the segment
-        containing that time point is returned as a third output.
+    time_of_cross_corr : np.ndarray
+        Array of representative time values for each chunk.
+    data_cross_corr : np.ndarray
+        Array of normalized cross-correlation values for each chunk.
+    specific_value : float, optional
+        Returned only if `specific_time` is provided. It is the correlation
+        value of the chunk closest to the specified time.
 
     Notes
     -----
-    - The length of `array1`, `array2`, and `time` must be the same.
-    - `steps` should evenly divide the length of the arrays for meaningful segmentation.
-    - The integration uses Simpson's rule and normalizes by segment length and sampling interval.
+    - The input arrays are truncated so their length is divisible by `steps`.
+    - Correlation is computed as:
 
-    Example
-    -------
-    >>> import numpy as np
-    >>> time = np.linspace(0, 10, 1000)
-    >>> array1 = np.sin(time)
-    >>> array2 = np.cos(time)
-    >>> time_of_cross_corr, data_cross_corr = cross_correlator(array1, array2, time, steps=10)
-    >>> print(time_of_cross_corr)
-    >>> print(data_cross_corr)
+        corr = mean(a1 * a2) / sqrt(mean(a1^2) * mean(a2^2))
 
+      which is equivalent to cosine similarity unless `pearson=True`, in which
+      case it becomes a Pearson-like correlation.
+    - If a chunk has zero variance in either signal, its correlation is set to 0.
+
+    Examples
+    --------
+    >>> t = np.linspace(0, 10, 1000)
+    >>> x = np.sin(t)
+    >>> y = np.cos(t)
+    >>> tc, cc = cross_correlator(x, y, t, steps=10)
+
+    >>> tc, cc, val = cross_correlator(x, y, t, steps=10, specific_time=5.0)
     """
 
-    N = int(len(array1))
+    N = len(array1)
     s = int(steps)
-    p = int(N / s)
+    p = N // s
+
+    # Trim to fit exact chunks
+    N_trim = p * s
+    a1 = array1[:N_trim].reshape(s, p)
+    a2 = array2[:N_trim].reshape(s, p)
+    t = time[:N_trim].reshape(s, p)
+
+    if pearson:
+        # Mean-center along each chunk
+        a1 = a1 - np.mean(a1, axis=1, keepdims=True)
+        a2 = a2 - np.mean(a2, axis=1, keepdims=True)
+
+    # Compute correlation components
+    num = np.mean(a1 * a2, axis=1)
+    norm_a = np.mean(a1**2, axis=1)
+    norm_b = np.mean(a2**2, axis=1)
+
+    denom = np.sqrt(norm_a * norm_b)
+
+    # Safe division
+    data_cross_corr = np.where(
+        (norm_a > 0) & (norm_b > 0),
+        num / denom,
+        0.0
+    )
+
+    # Time handling
+    if midpoint:
+        mid_idx = p // 2
+        time_of_cross_corr = 0.5 * (t[:, mid_idx - 1] + t[:, mid_idx])
+    else:
+        time_of_cross_corr = t[:, -1]
 
     if specific_time is not None:
-        idx = (np.abs(time - specific_time)).argmin()
+        idx = np.abs(time - specific_time).argmin()
         specific_chunk = idx // p
-
-    data_cross_corr, time_of_cross_corr = [], []
-    dt = time[1] - time[0]
-
-    for i in range(s):
-        start = i * p
-        end = start + p
-
-        result = (1 / (p * dt)) * simpson(
-            y=array1[start:end] * array2[start:end],
-            x=time[start:end]
-        )
-        data_cross_corr.append(result)
-
-        if midpoint:
-            t_mid = 0.5 * (time[start + p // 2 - 1] + time[start + p // 2])
-        else:
-            t_mid = time[end - 1]
-        time_of_cross_corr.append(t_mid)
-
-    data_cross_corr = np.array(data_cross_corr)
-    time_of_cross_corr = np.array(time_of_cross_corr)
-
-    if specific_time is not None:
         return time_of_cross_corr, data_cross_corr, data_cross_corr[specific_chunk]
 
     return time_of_cross_corr, data_cross_corr
+
 
 
 def grouped_sums(cc_data, cc_time, t_start, t_end, steps):
@@ -164,47 +186,6 @@ def grouped_std_deviation(data: np.ndarray, group_size: int) -> float:
     
     # Return the standard deviation
     return np.mean(grouped_sums), np.std(grouped_sums)
-
-
-def cross_correlator_normalized(array1, array2, time, steps, specific_time=None, midpoint=True):
-    N = int(len(array1))
-    s = int(steps)
-    p = int(N / s)
-
-    if specific_time is not None:
-        idx = (np.abs(time - specific_time)).argmin()
-        specific_chunk = idx // p
-
-    data_cross_corr, time_of_cross_corr = [], []
-
-    for i in range(s):
-        start = i * p
-        end = start + p
-
-        num = simpson(y=array1[start:end] * array2[start:end], x=time[start:end])
-        norm_a = simpson(y=array1[start:end]**2, x=time[start:end])
-        norm_b = simpson(y=array2[start:end]**2, x=time[start:end])
-
-        if norm_a > 0 and norm_b > 0:
-            result = num / np.sqrt(norm_a * norm_b)
-        else:
-            result = 0.0
-
-        data_cross_corr.append(result)
-
-        if midpoint:
-            t_mid = 0.5 * (time[start + p // 2 - 1] + time[start + p // 2])
-        else:
-            t_mid = time[end - 1]
-        time_of_cross_corr.append(t_mid)
-
-    data_cross_corr = np.array(data_cross_corr)
-    time_of_cross_corr = np.array(time_of_cross_corr)
-
-    if specific_time is not None:
-        return time_of_cross_corr, data_cross_corr, data_cross_corr[specific_chunk]
-
-    return time_of_cross_corr, data_cross_corr
 
 
 def SNR_calculator(cross, cross_noise, time, steps, specific_time=None, midpoint=True):
