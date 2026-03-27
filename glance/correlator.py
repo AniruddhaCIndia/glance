@@ -1,4 +1,3 @@
-from scipy.integrate import simpson
 import numpy as np
 
 def cross_correlator(
