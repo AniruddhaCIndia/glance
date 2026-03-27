@@ -186,7 +186,7 @@ def grouped_std_deviation(data: np.ndarray, group_size: int) -> float:
     return np.mean(grouped_sums), np.std(grouped_sums)
 
 
-def SNR_calculator(cross, cross_noise, time, steps, specific_time=None, midpoint=True):
+def snr_calculator(cross, cross_noise, time, steps, specific_time=None, midpoint=True):
     """
     Compute a chunk-wise, chunk-size-independent SNR of a cross-correlation signal.
 
