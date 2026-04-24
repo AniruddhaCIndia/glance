@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import gaussian_kde
 import json
+import healpy as hp
 
 def compute_kde(ra_samples, dec_samples, ra_grid, dec_grid, bw='silverman'):
     """
@@ -27,7 +28,6 @@ def compute_kde(ra_samples, dec_samples, ra_grid, dec_grid, bw='silverman'):
 
     return pdf
 
-
 def find_threshold(pdf, level=0.9):
     """
     Finds the KDE threshold corresponding to a desired confidence level.
@@ -44,7 +44,6 @@ def find_threshold(pdf, level=0.9):
     cumsum_pdf /= cumsum_pdf[-1]  # Normalize to 1
     threshold = sorted_pdf[np.searchsorted(cumsum_pdf, level)]
     return threshold
-
 
 def ra_dec_overlap(ra1, dec1, ra2, dec2, ra_grid, dec_grid, level=0.9):
     """
@@ -71,7 +70,6 @@ def ra_dec_overlap(ra1, dec1, ra2, dec2, ra_grid, dec_grid, level=0.9):
     overlap_points = np.column_stack([RA[overlap_region], DEC[overlap_region]])
 
     return overlap_points
-
 
 def overlapping_grid_points(event_id1, event_id2, ra_points=50, dec_points=25):
     """
@@ -115,13 +113,11 @@ def overlapping_grid_points(event_id1, event_id2, ra_points=50, dec_points=25):
     overlapping_points = ra_dec_overlap(ra1, dec1, ra2, dec2, ra_grid, dec_grid)
     return overlapping_points
 
-
 def ra_dec_to_x_y_z (ra, dec):
     theta = dec + np.pi/2
     phi = ra 
     x, y, z = np.sin(theta)* np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)
     return x, y, z
-
 
 def ra_dec_overlap_legacy(ra_1, dec_1, ra_2, dec_2, points = 100):
 
@@ -207,3 +203,59 @@ def ra_dec_overlap_legacy(ra_1, dec_1, ra_2, dec_2, points = 100):
     overlap_zx = np.any(region_zx1 & region_zx2)
     
     return (overlap_xy & overlap_yz & overlap_zx)#, region_xy1, region_xy2, region_yz1, region_yz2, region_zx1, region_zx2
+
+def make_map_healpy(ra, dec, nside, smooth_sigma_deg):
+    theta = np.pi/2 - dec
+    phi   = ra
+
+    pix = hp.ang2pix(nside, theta, phi)
+    m = np.bincount(pix, minlength=hp.nside2npix(nside)).astype(float)
+
+    m /= m.sum()
+
+    if smooth_sigma_deg > 0:
+        sigma = np.deg2rad(smooth_sigma_deg)
+        m = hp.smoothing(m, sigma=sigma)
+
+        # FIX: remove negative artifacts
+        m[m < 0] = 0.0
+        # renormalize to preserve probability
+        m /= m.sum()
+
+    return m
+
+def hpd_threshold_healpy(m, level):
+    idx = np.argsort(m)[::-1]
+    sorted_probs = m[idx]
+    cumsum = np.cumsum(sorted_probs)
+    cut = np.searchsorted(cumsum, level)
+    return sorted_probs[cut]
+
+def overlap_pixel_healpy(ra_1, dec_1, ra_2, dec_2, 
+                  nside, smooth_sigma_deg, threshold, return_maps=False):
+    m1 = make_map_healpy(ra_1, dec_1, nside, smooth_sigma_deg)
+    m2 = make_map_healpy(ra_2, dec_2, nside, smooth_sigma_deg)
+
+    thr1 = hpd_threshold_healpy(m1, threshold)
+    thr2 = hpd_threshold_healpy(m2, threshold)
+
+    mask1 = m1 >= thr1
+    mask2 = m2 >= thr2
+    
+    overlap = mask1 & mask2
+
+    if np.any(overlap):
+        print("Overlap exists")
+    else:
+        print("NO overlap")
+        
+    overlap_pix = np.where(overlap)[0]
+    theta, phi = hp.pix2ang(nside, overlap_pix)
+
+    ra_overlap = phi
+    dec_overlap = np.pi/2 - theta
+    
+    if return_maps:
+        return ra_overlap, dec_overlap, m1, m2
+    else:
+        return ra_overlap, dec_overlap
